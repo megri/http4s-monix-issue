@@ -27,9 +27,14 @@ object Main extends TaskApp with Http4sDsl[Task] {
         nats.headL.flatMap(n => Ok(s"$n seconds has elapsed since server start"))
 
       case GET -> Root / "ws" =>
+        val wsEvents = nats.map(n => WebSocketFrame.Text(s"tick: $n"))
+        //   .publish(scheduler)               // uncomment this row, the next, and the "onClose" to "circument" the issue.
+        // val cancelable = wsEvents.connect()
+
         WebSocketBuilder[Task].build(
-          nats.map(n => WebSocketFrame.Text(s"tick: $n")).toReactivePublisher(scheduler).toStream[Task],
-          _.drain
+          wsEvents.toReactivePublisher(scheduler).toStream[Task],
+          _.drain,
+          // onClose = Task.eval(cancelable.cancel()) // also uncomment this!
         )
       
       case GET -> Root / "test" =>
